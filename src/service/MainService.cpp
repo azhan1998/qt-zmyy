@@ -265,7 +265,7 @@ void MainService::secKill() {
                         xpack::json::decode(response.toStdString(), res);
                         if (!res.list.empty()) {
                             subDateList = res.list;
-                            getProductDetail();
+                            getProductDetail(); //suc next
                         } else {
                             if (!stopSecKill && timerCount < 50) { // 根据下面延时时间进行相应调整
                                 emit logger(LogType::ERR, "【时间列表为空，延迟300ms】");
@@ -274,7 +274,7 @@ void MainService::secKill() {
                                 timer->setTimerType(Qt::TimerType::PreciseTimer);
                                 timer->setSingleShot(true);
                                 connect(timer, &QTimer::timeout, this, &MainService::secKill);
-                                timer->start(300);
+                                timer->start(500);
                             }
                         }
                     } else {
@@ -285,15 +285,25 @@ void MainService::secKill() {
                             timer->setTimerType(Qt::TimerType::PreciseTimer);
                             timer->setSingleShot(true);
                             connect(timer, &QTimer::timeout, this, &MainService::secKill);
-                            timer->start(300);
+                            timer->start(500);
                         }
                     }
                 } catch (const exception &e) {
                     emit logger(LogType::ERR, QString("【异常-时间列表】 %1").arg(e.what()));
+            timer = new QTimer();
+            timer->setTimerType(Qt::TimerType::PreciseTimer);
+            timer->setSingleShot(true);
+            connect(timer, &QTimer::timeout, this, &MainService::secKill);
+            timer->start(500);
                 }
             })
             .fail([=](const QString &response, int code) {
                 emit logger(LogType::ERR, QString("【时间列表】 %1  %2").arg(code).arg(response));
+        timer = new QTimer();
+        timer->setTimerType(Qt::TimerType::PreciseTimer);
+        timer->setSingleShot(true);
+        connect(timer, &QTimer::timeout, this, &MainService::secKill);
+        timer->start(500);
             })
             .get();
 }
@@ -320,6 +330,7 @@ void MainService::getProductDetail() {
         }
         SubDate subDate = subDateList[i];
         if (!subDate.enable) {
+            timerCount++;
             emit logger(LogType::INFO, QString("【%1 暂未开启：】 %2").arg(i + 1).arg(subDate.date));
             continue;
         }
@@ -355,13 +366,25 @@ void MainService::getProductDetail() {
                     emit widgetDisable(false);
                     return;
                 }
+
             } catch (const exception &e) {
                 emit logger(LogType::ERR, QString("【异常-产品详情】 %1").arg(e.what()));
+                timer = new QTimer();
+                timer->setTimerType(Qt::TimerType::PreciseTimer);
+                timer->setSingleShot(true);
+                connect(timer, &QTimer::timeout, this, &MainService::secKill);
+                timer->start(300);
+                return;
             }
         } else {
             emit logger(LogType::ERR, QString("【预约时间详情】 %1  %2").arg(httpResponse.status).arg(httpResponse.fail));
-            isStart = false;
-            emit widgetDisable(false);
+//            isStart = false;
+//            emit widgetDisable(false);
+            timer = new QTimer();
+            timer->setTimerType(Qt::TimerType::PreciseTimer);
+            timer->setSingleShot(true);
+            connect(timer, &QTimer::timeout, this, &MainService::secKill);
+            timer->start(300);
             return;
         }
 
@@ -369,8 +392,15 @@ void MainService::getProductDetail() {
         QApplication::processEvents();
     }
 
-    if (timerCount < 50) { // 根据下面延时时间进行相应调整
+    if (timerCount < 0) { // 根据下面延时时间进行相应调整
         getProductDetail();
+    }
+    else{
+        timer = new QTimer();
+        timer->setTimerType(Qt::TimerType::PreciseTimer);
+        timer->setSingleShot(true);
+        connect(timer, &QTimer::timeout, this, &MainService::secKill);
+        timer->start(300);
     }
 }
 
@@ -394,8 +424,7 @@ bool MainService::ignoreCaptcha(QString &mxid) {
         }
     } else {
         emit logger(LogType::ERR, QString("【验证码检查】 %1  %2").arg(httpResponse.status).arg(httpResponse.fail));
-        stopSecKill = false;
-        emit widgetDisable(false);
+        getProductDetail();
     }
     return false;
 }
@@ -441,8 +470,9 @@ bool MainService::postOrder(QString &mxid, const QString &date) {
         }
     } else {
         emit logger(LogType::ERR, QString("【提交订单】 %1  %2").arg(httpResponse.status).arg(httpResponse.fail));
-        stopSecKill = false;
-        emit widgetDisable(false);
+//        stopSecKill = false;
+//        emit widgetDisable(false);
+        getProductDetail();
     }
 
     return false;
